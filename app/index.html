@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        textarea {
+            margin: 0;
+            padding: 0;
+            border: none;
+            outline: 2px solid black;
+
+            width: 100%;
+            height: 500px;
+
+            resize: vertical;
+        }
+        #input {
+            white-space: nowrap;
+        }
+        #terminal {
+            height: 150px;
+        }
+    </style>
+</head>
+<body>
+    <textarea id="input" spellcheck="false"></textarea>
+    <button id="submit">Run</button>
+    <button id="save">Save</button>
+    <textarea id="terminal" readonly spellcheck="false"></textarea>
+    <button id="clear">Clear</button>
+    <script type="module">
+        let user = localStorage.getItem("user") || prompt("Username");
+        localStorage.setItem("user", user);
+        input.value = localStorage.getItem("code") || "#include <stdio.h>\n\nint main() {\n  printf(\"Hello World!\\n\");\n  return 0;\n}\n";
+        terminal.value = "";
+
+        input.onkeydown = event => { if (event.ctrlKey && event.code == "KeyS") { event.preventDefault(); save.click(); } };
+        input.onbeforeinput = event => {
+            if (event.inputType == "insertLineBreak") {
+                event.preventDefault();
+                let selStart = input.selectionStart;
+                let selEnd = input.selectionEnd;
+
+                let start = input.value.substring(0, selStart);
+                let end = input.value.substring(input.selectionEnd);
+
+                let line = start.substring(start.lastIndexOf("\n") + 1);
+                let space = "\n";
+                while (line.startsWith(" ")) {
+                    line = line.slice(1);
+                    space += " ";
+                }
+
+                input.value = start + space + end;
+                input.selectionStart = selStart + space.length;
+                input.selectionEnd = selStart + space.length;
+            }
+        };
+
+        save.onclick = () => localStorage.setItem("code", input.value);
+
+        let get = (url, fn) => fetch(url).then(res => res.text()).then(text => { if (fn(text)) get(url, fn); });
+
+        submit.onclick = () => {
+            terminal.value = "";
+            terminal.readOnly = false;
+
+            let time0 = performance.now();
+
+            let url1 = new URL("/start", location.origin);
+            url1.searchParams.set("user", user);
+            url1.searchParams.set("code", input.value);
+
+            let url2 = new URL("/get", location.origin);
+            url2.searchParams.set("user", user);
+
+            fetch(url1.href).then(() => get(url2, text => {
+                if (text == "") { let time1 = performance.now(); terminal.readOnly = true; terminal.value += `## execution time : ${Math.round(time1 - time0)/1000} s ##`; return false; }
+                terminal.value += text;
+                return true;
+            }));
+        };
+
+        let text = ""; terminal.onbeforeinput = event => {
+            if (event.inputType == "insertLineBreak") {
+
+                let url = new URL("/put", location.origin);
+                url.searchParams.set("user", user);
+                url.searchParams.set("text", text + "\n"); text = "";
+
+                fetch(url.href);
+            } else text += event.data;
+        };
+
+        clear.onclick = () => terminal.value = "";
+    </script>
+</body>
+</html>
